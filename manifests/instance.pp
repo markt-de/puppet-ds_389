@@ -290,7 +290,7 @@ define ds_389::instance (
     # Generate the private key for the CA.
     -> ssl_pkey { "Generate CA private key: ${server_id}":
       ensure => 'present',
-      name   => $ca_key,
+      path   => $ca_key,
       size   => 4096,
     }
 
@@ -316,7 +316,7 @@ define ds_389::instance (
     # Create the CA certificate.
     -> x509_cert { "Create CA cert: ${server_id}":
       ensure      => 'present',
-      name        => $ca_cert,
+      path        => $ca_cert,
       template    => $ca_conf,
       private_key => $ca_key,
       days        => 3650,
