@@ -96,7 +96,7 @@ define ds_389::add (
     source  => $source,
   }
   -> exec { "Add ldif ${name}: ${server_id}":
-    command => "ldapadd -${_opts} ${protocol}://${server_host}:${server_port} -D \"${root_dn}\" -w ${root_dn_pass} -f /etc/dirsrv/slapd-${server_id}/${name}.ldif ; touch /etc/dirsrv/slapd-${server_id}/${name}.done", # lint:ignore:140chars
+    command => "ldapadd -${_opts} ${protocol}://${server_host}:${server_port} -D \"${root_dn}\" -w ${root_dn_pass} -f /etc/dirsrv/slapd-${server_id}/${name}.ldif && touch /etc/dirsrv/slapd-${server_id}/${name}.done", # lint:ignore:140chars
     path    => $ds_389::path,
     creates => "/etc/dirsrv/slapd-${server_id}/${name}.done",
   }
