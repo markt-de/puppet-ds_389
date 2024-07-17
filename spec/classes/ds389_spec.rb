@@ -218,7 +218,8 @@ basicConstraints = CA:true
         it { is_expected.to contain_ds_389__instance('foo') }
         it { is_expected.to contain_ds_389__service('foo') }
         it { is_expected.to contain_ds_389__ssl('foo') }
-        it { is_expected.to contain_exec('Clean up temp files: foo') }
+        it { is_expected.to contain_exec('Clean up temp passwd file: foo') }
+        it { is_expected.to contain_exec('Clean up temp noise file: foo') }
         it { is_expected.to contain_exec('Create cert DB: foo') }
         it { is_expected.to contain_exec('Export CA cert: foo') }
         it { is_expected.to contain_exec('Export server cert: foo') }

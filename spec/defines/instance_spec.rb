@@ -95,9 +95,7 @@ describe 'ds_389::instance' do
             command: %r{echo \d+ | sha256sum | awk '{print $1}' > /tmp/noisefile-specdirectory},
             path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
             refreshonly: true,
-          ).that_subscribes_to('Exec[stop specdirectory to create new token]').that_notifies(
-            'Exec[Generate password file: specdirectory]',
-          )
+          ).that_subscribes_to('Exec[stop specdirectory to create new token]')
         }
 
         it {
@@ -105,7 +103,7 @@ describe 'ds_389::instance' do
             command: 'echo supersecure > /tmp/passfile-specdirectory',
             path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
             refreshonly: true,
-          ).that_notifies('Exec[Create cert DB: specdirectory]')
+          ).that_subscribes_to('Exec[Create cert DB: specdirectory]')
         }
 
         it {
@@ -146,7 +144,8 @@ describe 'ds_389::instance' do
           ).that_notifies(
             [
               'Exec[Set permissions on database directory: specdirectory]',
-              'Exec[Clean up temp files: specdirectory]',
+              'Exec[Clean up temp noise file: specdirectory]',
+              'Exec[Clean up temp passwd file: specdirectory]',
               'Exec[Add trust for server cert: specdirectory]',
             ],
           )
@@ -186,8 +185,15 @@ describe 'ds_389::instance' do
         }
 
         it {
-          is_expected.to contain_exec('Clean up temp files: specdirectory').with(
-            command: 'rm -f /tmp/noisefile-specdirectory /tmp/passfile-specdirectory',
+          is_expected.to contain_exec('Clean up temp passwd file: specdirectory').with(
+            command: 'rm -f /tmp/passfile-specdirectory',
+            refreshonly: true,
+          )
+        }
+
+        it {
+          is_expected.to contain_exec('Clean up temp noise file: specdirectory').with(
+            command: 'rm -f /tmp/noisefile-specdirectory',
             refreshonly: true,
           )
         }
@@ -259,6 +265,13 @@ describe 'ds_389::instance' do
           it { is_expected.to compile }
 
           it {
+            is_expected.to contain_exec('Clean up temp passwd file: specdirectory').with(
+              command: 'rm -f /tmp/passfile-specdirectory',
+              refreshonly: true,
+            )
+          }
+
+          it {
             is_expected.to contain_concat__fragment('specdirectory_cert').with(
               target: 'specdirectory_cert_bundle',
               source: 'puppet:///specfiles/ssl_cert.pem',
@@ -327,7 +340,7 @@ describe 'ds_389::instance' do
 
           it {
             is_expected.to contain_exec('Add trust for CA0: specdirectory').with(
-              command: 'certutil -M -n "Spec Intermediate Certificate" -t CT,, -d /etc/dirsrv/slapd-specdirectory',
+              command: 'certutil -M -n "Spec Intermediate Certificate" -t CT,, -d /etc/dirsrv/slapd-specdirectory -f /tmp/passfile-specdirectory',
               path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
               unless: 'certutil -L -d /etc/dirsrv/slapd-specdirectory | grep "Spec Intermediate Certificate" | grep "CT"',
             ).that_requires('Exec[Create cert DB: specdirectory]').that_notifies('Exec[Export CA cert 0: specdirectory]')
@@ -349,7 +362,7 @@ describe 'ds_389::instance' do
 
           it {
             is_expected.to contain_exec('Add trust for CA1: specdirectory').with(
-              command: 'certutil -M -n "Spec Root Certificate" -t CT,, -d /etc/dirsrv/slapd-specdirectory',
+              command: 'certutil -M -n "Spec Root Certificate" -t CT,, -d /etc/dirsrv/slapd-specdirectory -f /tmp/passfile-specdirectory',
               path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
               unless: 'certutil -L -d /etc/dirsrv/slapd-specdirectory | grep "Spec Root Certificate" | grep "CT"',
             ).that_requires('Exec[Create cert DB: specdirectory]').that_notifies('Exec[Export CA cert 1: specdirectory]')
@@ -377,7 +390,6 @@ describe 'ds_389::instance' do
           }
 
           it { is_expected.not_to contain_exec('Generate noise file: specdirectory') }
-          it { is_expected.not_to contain_exec('Generate password file: specdirectory') }
         end
 
         context 'when setting up replication' do
@@ -705,21 +717,11 @@ describe 'ds_389::instance' do
         end
 
         it {
-          is_expected.to contain_exec('Generate noise file: ldap01').with(
-            command: %r{echo \d+ | sha256sum | awk '{print $1}' > /tmp/noisefile-ldap01},
-            path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
-            refreshonly: true,
-          ).that_subscribes_to('Exec[stop ldap01 to create new token]').that_notifies(
-            'Exec[Generate password file: ldap01]',
-          )
-        }
-
-        it {
           is_expected.to contain_exec('Generate password file: ldap01').with(
             command: 'echo supersecure > /tmp/passfile-ldap01',
             path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
             refreshonly: true,
-          ).that_notifies('Exec[Create cert DB: ldap01]')
+          ).that_subscribes_to('Exec[Create cert DB: ldap01]')
         }
 
         it {
@@ -748,7 +750,12 @@ describe 'ds_389::instance' do
             command: 'certutil -M -n "ldap01CA" -t CT,C,C -d /etc/dirsrv/slapd-ldap01 -f /tmp/passfile-ldap01',
             path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
             unless: 'certutil -L -d /etc/dirsrv/slapd-ldap01 | grep "ldap01CA" | grep "CTu,Cu,Cu"',
-          ).that_notifies('Exec[Export CA cert: ldap01]')
+          ).that_notifies(
+            [
+              'Exec[Export CA cert: ldap01]',
+              'Exec[Clean up temp passwd file: ldap01]',
+            ],
+          )
         }
 
         it {
@@ -760,7 +767,8 @@ describe 'ds_389::instance' do
           ).that_notifies(
             [
               'Exec[Set permissions on database directory: ldap01]',
-              'Exec[Clean up temp files: ldap01]',
+              'Exec[Clean up temp passwd file: ldap01]',
+              'Exec[Clean up temp noise file: ldap01]',
               'Exec[Add trust for server cert: ldap01]',
             ],
           )
@@ -800,8 +808,15 @@ describe 'ds_389::instance' do
         }
 
         it {
-          is_expected.to contain_exec('Clean up temp files: ldap01').with(
-            command: 'rm -f /tmp/noisefile-ldap01 /tmp/passfile-ldap01',
+          is_expected.to contain_exec('Clean up temp passwd file: ldap01').with(
+            command: 'rm -f /tmp/passfile-ldap01',
+            refreshonly: true,
+          )
+        }
+
+        it {
+          is_expected.to contain_exec('Clean up temp noise file: ldap01').with(
+            command: 'rm -f /tmp/noisefile-ldap01',
             refreshonly: true,
           )
         }
@@ -945,16 +960,34 @@ describe 'ds_389::instance' do
                 command: 'pk12util -i /etc/pki/tls/certs/ldap01.p12 -d /etc/dirsrv/slapd-ldap01 -W secret -K supersecure',
                 path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
                 refreshonly: true,
-              )
+              ).that_notifies('Exec[Generate password file: ldap01]')
             }
           end
 
           it {
+            is_expected.to contain_exec('Generate password file: ldap01').with(
+              command: 'echo supersecure > /tmp/passfile-ldap01',
+              path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
+              refreshonly: true,
+            )
+          }
+
+          it {
             is_expected.to contain_exec('Add trust for CA0: ldap01').with(
-              command: 'certutil -M -n "Spec Intermediate Certificate" -t CT,, -d /etc/dirsrv/slapd-ldap01',
+              command: 'certutil -M -n "Spec Intermediate Certificate" -t CT,, -d /etc/dirsrv/slapd-ldap01 -f /tmp/passfile-ldap01',
               path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
               unless: 'certutil -L -d /etc/dirsrv/slapd-ldap01 | grep "Spec Intermediate Certificate" | grep "CT"',
-            ).that_requires('Exec[Create cert DB: ldap01]').that_notifies('Exec[Export CA cert 0: ldap01]')
+            ).that_requires(
+              [
+                'Exec[Create cert DB: ldap01]',
+                'Exec[Generate password file: ldap01]',
+              ],
+            ).that_notifies(
+              [
+                'Exec[Export CA cert 0: ldap01]',
+                'Exec[Clean up temp passwd file: ldap01]',
+              ],
+            )
           }
           it {
             is_expected.to contain_exec('Export CA cert 0: ldap01').with(
@@ -973,10 +1006,20 @@ describe 'ds_389::instance' do
 
           it {
             is_expected.to contain_exec('Add trust for CA1: ldap01').with(
-              command: 'certutil -M -n "Spec Root Certificate" -t CT,, -d /etc/dirsrv/slapd-ldap01',
+              command: 'certutil -M -n "Spec Root Certificate" -t CT,, -d /etc/dirsrv/slapd-ldap01 -f /tmp/passfile-ldap01',
               path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
               unless: 'certutil -L -d /etc/dirsrv/slapd-ldap01 | grep "Spec Root Certificate" | grep "CT"',
-            ).that_requires('Exec[Create cert DB: ldap01]').that_notifies('Exec[Export CA cert 1: ldap01]')
+            ).that_requires(
+              [
+                'Exec[Create cert DB: ldap01]',
+                'Exec[Generate password file: ldap01]',
+              ],
+            ).that_notifies(
+              [
+                'Exec[Export CA cert 1: ldap01]',
+                'Exec[Clean up temp passwd file: ldap01]',
+              ],
+            )
           }
           it {
             is_expected.to contain_exec('Export CA cert 1: ldap01').with(
@@ -1001,7 +1044,6 @@ describe 'ds_389::instance' do
           }
 
           it { is_expected.not_to contain_exec('Generate noise file: ldap01') }
-          it { is_expected.not_to contain_exec('Generate password file: ldap01') }
         end
 
         context 'when setting up replication' do
