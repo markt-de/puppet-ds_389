@@ -303,7 +303,7 @@ describe 'ds_389::instance' do
             }
             it {
               is_expected.to contain_exec('Create pkcs12 cert: specdirectory').with(
-                command: 'openssl pkcs12 -export -password pass:secret -name foo.example.com -in /etc/ssl/specdirectory-bundle.pem -out /etc/ssl/specdirectory.p12',
+                command: 'openssl pkcs12 -export -password pass:secret -name "Spec Certificate" -in /etc/ssl/specdirectory-bundle.pem -out /etc/ssl/specdirectory.p12',
                 path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
                 refreshonly: true,
               ).that_notifies('Exec[Create cert DB: specdirectory]')
@@ -324,7 +324,7 @@ describe 'ds_389::instance' do
             }
             it {
               is_expected.to contain_exec('Create pkcs12 cert: specdirectory').with(
-                command: 'openssl pkcs12 -export -password pass:secret -name foo.example.com -in /etc/pki/tls/certs/specdirectory-bundle.pem -out /etc/pki/tls/certs/specdirectory.p12',
+                command: 'openssl pkcs12 -export -password pass:secret -name "Spec Certificate" -in /etc/pki/tls/certs/specdirectory-bundle.pem -out /etc/pki/tls/certs/specdirectory.p12',
                 path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
                 refreshonly: true,
               ).that_notifies('Exec[Create cert DB: specdirectory]')
@@ -929,7 +929,7 @@ describe 'ds_389::instance' do
             }
             it {
               is_expected.to contain_exec('Create pkcs12 cert: ldap01').with(
-                command: 'openssl pkcs12 -export -password pass:secret -name ldap.test.org -in /etc/ssl/ldap01-bundle.pem -out /etc/ssl/ldap01.p12',
+                command: 'openssl pkcs12 -export -password pass:secret -name "Spec Certificate" -in /etc/ssl/ldap01-bundle.pem -out /etc/ssl/ldap01.p12',
                 path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
                 refreshonly: true,
               ).that_notifies('Exec[Create cert DB: ldap01]')
@@ -950,7 +950,7 @@ describe 'ds_389::instance' do
             }
             it {
               is_expected.to contain_exec('Create pkcs12 cert: ldap01').with(
-                command: 'openssl pkcs12 -export -password pass:secret -name ldap.test.org -in /etc/pki/tls/certs/ldap01-bundle.pem -out /etc/pki/tls/certs/ldap01.p12',
+                command: 'openssl pkcs12 -export -password pass:secret -name "Spec Certificate" -in /etc/pki/tls/certs/ldap01-bundle.pem -out /etc/pki/tls/certs/ldap01.p12',
                 path: '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin',
                 refreshonly: true,
               ).that_notifies('Exec[Create cert DB: ldap01]')
