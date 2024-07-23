@@ -22,7 +22,7 @@ class ds_389::install {
 
   # Support multiple package names by converting everything to an Array.
   $_packages = Array($ds_389::package_name, true)
-  ensure_packages($_packages,
+  stdlib::ensure_packages($_packages,
     {
       ensure  => $ds_389::package_ensure,
       require => [
