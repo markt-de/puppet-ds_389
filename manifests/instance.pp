@@ -110,11 +110,12 @@ define ds_389::instance (
 
   # Create instance template.
   file { $instance_template:
-    ensure  => file,
-    mode    => '0400',
-    owner   => $user,
-    group   => $group,
-    content => epp("${module_name}/instance.epp", {
+    ensure    => file,
+    mode      => '0400',
+    owner     => $user,
+    group     => $group,
+    show_diff => false,
+    content   => epp("${module_name}/instance.epp", {
         create_suffix   => $create_suffix,
         group           => $group,
         root_dn         => $root_dn,
