@@ -110,11 +110,12 @@ define ds_389::instance (
 
   # Create instance template.
   file { $instance_template:
-    ensure  => file,
-    mode    => '0400',
-    owner   => $user,
-    group   => $group,
-    content => epp("${module_name}/instance.epp", {
+    ensure    => file,
+    mode      => '0400',
+    owner     => $user,
+    group     => $group,
+    show_diff => false,
+    content   => epp("${module_name}/instance.epp", {
         create_suffix   => $create_suffix,
         group           => $group,
         root_dn         => $root_dn,
@@ -169,6 +170,24 @@ define ds_389::instance (
     notify    => Exec["restart ${server_id} to pick up new token"],
   }
 
+  $temp_pass_file = "/tmp/passfile-${server_id}"
+
+  # Create password file.
+  exec { "Generate password file: ${server_id}":
+    command     => "echo ${root_dn_pass} > ${temp_pass_file}",
+    path        => $ds_389::path,
+    refreshonly => true,
+    subscribe   => Exec["Create cert DB: ${server_id}"],
+  }
+
+  # Remove temp passwd file.
+  # Be sure to use 'notify => Exec["Clean up temp passwd file: ${server_id}"] anywhere you need to use the file.'
+  exec { "Clean up temp passwd file: ${server_id}":
+    command     => "rm -f ${temp_pass_file}",
+    path        => $ds_389::path,
+    refreshonly => true,
+  }
+
   # If we have existing certs, create cert db and import certs.
   if $ssl {
     # concat bundle
@@ -195,7 +214,7 @@ define ds_389::instance (
     }
 
     exec { "Create pkcs12 cert: ${server_id}":
-      command     => "openssl pkcs12 -export -password pass:${cert_db_pass} -name ${server_host} -in ${ds_389::ssl_dir}/${server_id}-bundle.pem -out ${ds_389::ssl_dir}/${server_id}.p12", # lint:ignore:140chars
+      command     => "openssl pkcs12 -export -password pass:${cert_db_pass} -name \"${ssl['cert_name']}\" -in ${ds_389::ssl_dir}/${server_id}-bundle.pem -out ${ds_389::ssl_dir}/${server_id}.p12", # lint:ignore:140chars
       path        => $ds_389::path,
       refreshonly => true,
       notify      => Exec["Create cert DB: ${server_id}"],
@@ -210,11 +229,17 @@ define ds_389::instance (
 
     $ssl['ca_cert_names'].each |$index, $cert_name| {
       exec { "Add trust for CA${index}: ${server_id}":
-        command => "certutil -M -n \"${cert_name}\" -t CT,, -d ${instance_path}",
+        command => "certutil -M -n \"${cert_name}\" -t CT,, -d ${instance_path} -f ${temp_pass_file}",
         path    => $ds_389::path,
         unless  => "certutil -L -d ${instance_path} | grep \"${cert_name}\" | grep \"CT\"",
-        require => Exec["Create cert DB: ${server_id}"],
-        notify  => Exec["Export CA cert ${index}: ${server_id}"],
+        require => [
+          Exec["Generate password file: ${server_id}"],
+          Exec["Create cert DB: ${server_id}"],
+        ],
+        notify  => [
+          Exec["Export CA cert ${index}: ${server_id}"],
+          Exec["Clean up temp passwd file: ${server_id}"],
+        ],
       }
       # - export ca cert
       exec { "Export CA cert ${index}: ${server_id}":
@@ -261,30 +286,23 @@ define ds_389::instance (
 
     # Create noise file.
     $temp_noise_file = "/tmp/noisefile-${server_id}"
-    $temp_pass_file = "/tmp/passfile-${server_id}"
     $rand_int = fqdn_rand(32)
     exec { "Generate noise file: ${server_id}":
       command     => "echo ${rand_int} | sha256sum | awk \'{print \$1}\' > ${temp_noise_file}",
       path        => $ds_389::path,
       refreshonly => true,
       subscribe   => Exec["stop ${server_id} to create new token"],
-      notify      => Exec["Generate password file: ${server_id}"],
-    }
-
-    # Create password file.
-    exec { "Generate password file: ${server_id}":
-      command     => "echo ${root_dn_pass} > ${temp_pass_file}",
-      path        => $ds_389::path,
-      refreshonly => true,
-      notify      => Exec["Create cert DB: ${server_id}"],
     }
 
     # Create nss db.
-    -> exec { "Create cert DB: ${server_id}":
+    exec { "Create cert DB: ${server_id}":
       command     => "certutil -N -d ${instance_path} -f ${temp_pass_file}",
       path        => $ds_389::path,
       refreshonly => true,
-      notify      => Ssl_pkey["Generate CA private key: ${server_id}"],
+      notify      => [
+        Ssl_pkey["Generate CA private key: ${server_id}"],
+        Exec["Clean up temp passwd file: ${server_id}"],
+      ],
     }
 
     # Generate the private key for the CA.
@@ -347,7 +365,8 @@ define ds_389::instance (
       ],
       notify      => [
         Exec["Make server cert and add to database: ${server_id}"],
-        Exec["Clean up temp files: ${server_id}"],
+        Exec["Clean up temp passwd file: ${server_id}"],
+        Exec["Clean up temp noise file: ${server_id}"],
         Exec["Add trust for CA: ${server_id}"],
       ],
     }
@@ -371,7 +390,10 @@ define ds_389::instance (
       subscribe => [
         X509_cert["Create CA cert: ${server_id}"],
       ],
-      notify    => Exec["Export CA cert: ${server_id}"],
+      notify    => [
+        Exec["Export CA cert: ${server_id}"],
+        Exec["Clean up temp passwd file: ${server_id}"],
+      ],
     }
 
     # Export ca cert.
@@ -398,7 +420,8 @@ define ds_389::instance (
       refreshonly => true,
       notify      => [
         Exec["Set permissions on database directory: ${server_id}"],
-        Exec["Clean up temp files: ${server_id}"],
+        Exec["Clean up temp passwd file: ${server_id}"],
+        Exec["Clean up temp noise file: ${server_id}"],
         Exec["Add trust for server cert: ${server_id}"],
       ],
     }
@@ -418,9 +441,9 @@ define ds_389::instance (
       refreshonly => true,
     }
 
-    # Remove temp files (passwd and noise).
-    -> exec { "Clean up temp files: ${server_id}":
-      command     => "rm -f ${temp_noise_file} ${temp_pass_file}",
+    # Remove temp noise file.
+    -> exec { "Clean up temp noise file: ${server_id}":
+      command     => "rm -f ${temp_noise_file}",
       path        => $ds_389::path,
       refreshonly => true,
     }
